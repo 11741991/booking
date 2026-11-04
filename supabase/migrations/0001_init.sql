@@ -66,7 +66,7 @@ $$;
 create or replace function public.has_role(r public.user_role)
 returns boolean
 language sql stable security definer set search_path = public as $$
-  select coalesce(r = any((select roles from public.current_app_user())), false)
+  select coalesce(r = any((public.current_app_user()).roles), false)
 $$;
 
 -- Привязка auth-пользователя к сотруднику при первом входе
