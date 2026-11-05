@@ -1,5 +1,5 @@
 "use client";
-import { useActionState, useState, useTransition } from "react";
+import { useActionState, useRef, useState, useTransition } from "react";
 import type { AppUser, Role } from "@/lib/roles";
 import { ROLE_LABELS } from "@/lib/roles";
 import { createUser, updateUser, setUserActive } from "./actions";
@@ -21,9 +21,14 @@ function RoleCheckboxes({ defaults }: { defaults?: Role[] }) {
 }
 
 function AddUserForm() {
-  const [state, action, pending] = useActionState<ActionState, FormData>(createUser, null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const [state, action, pending] = useActionState<ActionState, FormData>(async (prev, fd) => {
+    const res = await createUser(prev, fd);
+    if (res.ok) formRef.current?.reset();
+    return res;
+  }, null);
   return (
-    <form action={action} className="card space-y-3" key={state?.ok ? Date.now() : "form"}>
+    <form ref={formRef} action={action} className="card space-y-3">
       <h2 className="font-medium">Добавить сотрудника</h2>
       <div className="grid gap-3 sm:grid-cols-2">
         <input name="name" placeholder="Имя" className="input" required />
