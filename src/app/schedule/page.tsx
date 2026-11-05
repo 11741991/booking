@@ -101,12 +101,15 @@ export default async function SchedulePage(props: PageProps<"/schedule">) {
   const cells: Record<string, CellInfo> = {};
   for (const slot of Object.values(grid.slots)) {
     let blockId: string | null = null;
+    let booking: CellInfo["booking"] = null;
     if (target === "all") {
       blockId = slot.cells.find((c) => c.blockForAll)?.blockId ?? null;
     } else {
-      blockId = slot.cells.find((c) => c.closerId === target)?.blockId ?? null;
+      const c = slot.cells.find((x) => x.closerId === target);
+      blockId = c?.blockId ?? null;
+      if (c?.bookingId) booking = { id: c.bookingId, hunterName: c.bookingHunterName };
     }
-    cells[slot.key] = { past: slot.past, block: blockId ? (blockById[blockId] ?? null) : null };
+    cells[slot.key] = { past: slot.past, block: blockId ? (blockById[blockId] ?? null) : null, booking };
   }
 
   const targetName =

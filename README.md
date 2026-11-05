@@ -7,12 +7,13 @@ Next.js 16 + Supabase (Postgres, вход через Google) + Vercel.
 2. В Supabase → SQL Editor выполнить по порядку файлы из `supabase/migrations/`.
 3. Supabase → Authentication → Providers → Google: включить, вставить Client ID / Secret.
 4. Supabase → Authentication → URL Configuration: Site URL = адрес приложения, Redirect URLs = `<адрес>/auth/callback`.
-5. `npm install && npm run dev`.
+5. (необязательно) amoCRM: переменные `AMO_TOKEN` (долгосрочный токен интеграции) и `AMO_DOMAIN` (например `soara.amocrm.ru`).
+6. `npm install && npm run dev`.
 
 ## Этапы
 1. ✅ Вход через Google, пользователи и роли, экран админа
 2. ✅ Слоты: сетка свободных окон, закрытие слотов (разово, диапазон, повтор), массовое закрытие
-3. Бронирование
+3. ✅ Бронирование: форма брони, случайный клоузер, защита от двойной брони, карточка встречи, «Мои встречи», данные из amoCRM
 4. РОП: статусы, перенос, статистика
 5. Google Календарь (запись броней)
 6. Двусторонняя синхронизация с календарём

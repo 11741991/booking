@@ -1,6 +1,8 @@
 "use client";
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import { WeekGrid } from "@/components/week-grid";
+import { Modal } from "@/components/modal";
 import type { Day, Time } from "@/lib/schedule";
 import {
   REASONS,
@@ -28,7 +30,11 @@ export type BlockInfo = {
   canDelete: boolean;
 };
 
-export type CellInfo = { past: boolean; block: BlockInfo | null };
+export type CellInfo = {
+  past: boolean;
+  block: BlockInfo | null;
+  booking: { id: string; hunterName: string | null } | null;
+};
 
 type Props = {
   target: string;
@@ -44,15 +50,21 @@ type Props = {
   today: string;
 };
 
+function plural(n: number, one: string, few: string, many: string) {
+  const m10 = n % 10, m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return one;
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
+  return many;
+}
+
 const MONTHS = ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
 const dayTitle = (d: Day) => `${d.weekday}, ${d.dayNum} ${MONTHS[d.month - 1]}`;
 
-export function ScheduleView(p: Props) {
-  const [selected, setSelected] = useState<{ date: string; minutes: number } | null>(null);
-  const [form, setForm] = useState(false);
+type Selected = { date: string; minutes: number | null }; // minutes = null → весь день
 
-  const sel = selected ? p.cells[`${selected.date}|${selected.minutes}`] : null;
-  const selDay = selected ? p.days.find((d) => d.date === selected.date) : null;
+export function ScheduleView(p: Props) {
+  const [selected, setSelected] = useState<Selected | null>(null);
+  const [form, setForm] = useState(false);
 
   return (
     <div className="space-y-4">
@@ -60,61 +72,56 @@ export function ScheduleView(p: Props) {
         <WeekGrid
           days={p.days}
           times={p.times}
+          onDayClick={(date) => setSelected({ date, minutes: null })}
           renderCell={(date, minutes) => {
             const c = p.cells[`${date}|${minutes}`];
             if (c?.past) return <div className="h-10 rounded-md bg-gray-50" aria-label="Прошло" />;
             const b = c?.block;
+            const bk = c?.booking;
             return (
               <button
                 type="button"
                 onClick={() => setSelected({ date, minutes })}
                 className={`h-10 w-full rounded-md border text-[10px] sm:text-xs leading-tight px-0.5 transition ${
-                  b
-                    ? b.forAll && !p.isAll
-                      ? "bg-violet-50 border-violet-200 text-violet-800"
-                      : "bg-amber-50 border-amber-200 text-amber-800"
-                    : "bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100"
+                  bk
+                    ? "bg-sky-100 border-sky-300 text-sky-900 font-medium"
+                    : b
+                      ? b.forAll && !p.isAll
+                        ? "bg-violet-50 border-violet-200 text-violet-800"
+                        : "bg-amber-50 border-amber-200 text-amber-800"
+                      : "bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100"
                 }`}
-                title={b ? `${b.reasonLabel}${b.comment ? ": " + b.comment : ""}` : "Свободно"}
+                title={
+                  bk
+                    ? `Встреча · хантер ${bk.hunterName ?? ""}`
+                    : b
+                      ? `${b.reasonLabel}${b.comment ? ": " + b.comment : ""}`
+                      : "Свободно"
+                }
               >
-                {b ? REASON_SHORT[b.reason] : <span className="opacity-60">✓</span>}
+                {bk ? "Встреча" : b ? REASON_SHORT[b.reason] : <span className="opacity-60">✓</span>}
               </button>
             );
           }}
         />
         <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-xs text-gray-500">
           <Legend className="bg-emerald-100 border-emerald-200" label="свободно" />
+          {!p.isAll && <Legend className="bg-sky-100 border-sky-300" label="встреча" />}
           <Legend className="bg-amber-100 border-amber-200" label="закрыто" />
           {!p.isAll && <Legend className="bg-violet-100 border-violet-200" label="закрыто для всех" />}
-          <span>Нажмите на слот, чтобы закрыть или открыть его</span>
+          <span>Нажмите на слот или на день, чтобы закрыть или открыть</span>
         </div>
       </div>
 
       <div className="flex flex-wrap gap-2">
         <button className="btn-primary" onClick={() => setForm(true)}>
-          {p.isAll ? "Закрыть слоты всем клоузерам" : "Закрыть слоты"}
+          {p.isAll ? "Закрыть слоты всем клоузерам" : "Закрыть диапазон или повтор"}
         </button>
       </div>
 
       <BlocksList blocks={p.blocks} isAll={p.isAll} />
 
-      {selected && selDay && (
-        <SlotDialog
-          title={`${dayTitle(selDay)}, ${minutesLabel(selected.minutes)}–${minutesLabel(selected.minutes + p.slotMinutes)}`}
-          block={sel?.block ?? null}
-          isAll={p.isAll}
-          onClose={() => setSelected(null)}
-          onCloseSlot={(reason, comment) =>
-            closeSlotsAction({
-              target: p.target,
-              date: selected.date,
-              minutes: [selected.minutes],
-              reason,
-              comment,
-            })
-          }
-        />
-      )}
+      {selected && <SlotDialog {...p} selected={selected} onClose={() => setSelected(null)} />}
 
       {form && <CloseForm {...p} onDone={() => setForm(false)} />}
     </div>
@@ -126,27 +133,6 @@ function Legend({ className, label }: { className: string; label: string }) {
     <span className="inline-flex items-center gap-1.5">
       <span className={`w-3 h-3 rounded border ${className}`} /> {label}
     </span>
-  );
-}
-
-/* ---------- Модальное окно ---------- */
-
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4" onClick={onClose}>
-      <div
-        className="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-4 space-y-4 max-h-[90vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-start justify-between gap-3">
-          <h2 className="font-semibold">{title}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-xl leading-none" aria-label="Закрыть">
-            ×
-          </button>
-        </div>
-        {children}
-      </div>
-    </div>
   );
 }
 
@@ -188,19 +174,20 @@ function ReasonFields({
   );
 }
 
-function SlotDialog({
-  title,
-  block,
-  isAll,
-  onClose,
-  onCloseSlot,
-}: {
-  title: string;
-  block: BlockInfo | null;
-  isAll: boolean;
-  onClose: () => void;
-  onCloseSlot: (reason: string, comment: string) => Promise<{ ok?: true; error?: string }>;
-}) {
+/** Окно слота: если занято — подробности; если свободно — выбор часов этого дня и причины */
+function SlotDialog(p: Props & { selected: Selected; onClose: () => void }) {
+  const { date, minutes } = p.selected;
+  const day = p.days.find((d) => d.date === date)!;
+  const cell = minutes !== null ? p.cells[`${date}|${minutes}`] : null;
+
+  const freeTimes = p.times.filter((t) => {
+    const c = p.cells[`${date}|${t.minutes}`];
+    return !c?.past && !c?.block && !c?.booking;
+  });
+
+  const [mins, setMins] = useState<number[]>(
+    minutes === null ? freeTimes.map((t) => t.minutes) : [minutes],
+  );
   const [reason, setReason] = useState<BlockReason | "">("");
   const [comment, setComment] = useState("");
   const [err, setErr] = useState<string | null>(null);
@@ -211,17 +198,40 @@ function SlotDialog({
     start(async () => {
       const res = await fn();
       if (res.error) setErr(res.error);
-      else onClose();
+      else p.onClose();
     });
   }
 
-  if (block) {
+  const slotTitle =
+    minutes === null
+      ? dayTitle(day)
+      : `${dayTitle(day)}, ${minutesLabel(minutes)}–${minutesLabel(minutes + p.slotMinutes)}`;
+
+  if (cell?.booking) {
     return (
-      <Modal title={title} onClose={onClose}>
+      <Modal title={slotTitle} onClose={p.onClose}>
+        <div className="rounded-lg bg-sky-50 border border-sky-200 p-3 text-sm space-y-1">
+          <div className="font-medium">Встреча с клиентом</div>
+          <div className="text-gray-700">Хантер: {cell.booking.hunterName ?? "—"}</div>
+        </div>
+        <p className="text-xs text-gray-500">
+          Закрыть слот с бронью нельзя — сначала РОП отменяет или переносит встречу.
+        </p>
+        <Link href={`/bookings/${cell.booking.id}`} className="btn-primary w-full">
+          Открыть карточку встречи
+        </Link>
+      </Modal>
+    );
+  }
+
+  if (cell?.block) {
+    const block = cell.block;
+    return (
+      <Modal title={slotTitle} onClose={p.onClose}>
         <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm space-y-1">
           <div className="font-medium">
             Закрыто: {block.reasonLabel}
-            {block.forAll && !isAll && <span className="ml-1 text-violet-700">(для всех клоузеров)</span>}
+            {block.forAll && !p.isAll && <span className="ml-1 text-violet-700">(для всех клоузеров)</span>}
           </div>
           {block.comment && <div className="text-gray-700">{block.comment}</div>}
           <div className="text-gray-600">
@@ -235,11 +245,7 @@ function SlotDialog({
               Откроется закрытие целиком: {block.kind === "recurring" ? "все повторы" : block.text}.
             </p>
             {err && <p className="text-sm text-red-600">{err}</p>}
-            <button
-              className="btn-primary w-full"
-              disabled={pending}
-              onClick={() => run(() => deleteBlockAction(block.id))}
-            >
+            <button className="btn-primary w-full" disabled={pending} onClick={() => run(() => deleteBlockAction(block.id))}>
               {pending ? "Открываем…" : "Открыть"}
             </button>
           </>
@@ -250,20 +256,72 @@ function SlotDialog({
     );
   }
 
+  const toggle = (m: number) => setMins((xs) => (xs.includes(m) ? xs.filter((x) => x !== m) : [...xs, m]));
+  const allOn = freeTimes.length > 0 && freeTimes.every((t) => mins.includes(t.minutes));
+
   return (
-    <Modal title={title} onClose={onClose}>
-      <p className="text-sm text-gray-600">
-        {isAll ? "Слот свободен. Закрыть его всем клоузерам?" : "Слот свободен. Закрыть его?"}
-      </p>
-      <ReasonFields reason={reason} setReason={setReason} comment={comment} setComment={setComment} />
-      {err && <p className="text-sm text-red-600">{err}</p>}
-      <button
-        className="btn-primary w-full"
-        disabled={pending || !reason}
-        onClick={() => run(() => onCloseSlot(reason, comment))}
-      >
-        {pending ? "Закрываем…" : "Закрыть слот"}
-      </button>
+    <Modal title={slotTitle} onClose={p.onClose}>
+      {freeTimes.length === 0 ? (
+        <p className="text-sm text-gray-600">Свободных слотов в этот день нет.</p>
+      ) : (
+        <>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-medium">
+                {p.isAll ? "Какие слоты закрыть всем клоузерам" : "Какие слоты закрыть"}
+              </div>
+              <button
+                type="button"
+                className="text-xs underline text-gray-600"
+                onClick={() => setMins(allOn ? [] : freeTimes.map((t) => t.minutes))}
+              >
+                {allOn ? "Снять все" : "Весь день"}
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-1.5">
+              {p.times.map((t) => {
+                const c = p.cells[`${date}|${t.minutes}`];
+                const disabled = !!c?.past || !!c?.block || !!c?.booking;
+                const on = mins.includes(t.minutes);
+                return (
+                  <button
+                    key={t.minutes}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => toggle(t.minutes)}
+                    className={`rounded-lg py-2 text-sm border tabular-nums ${
+                      disabled
+                        ? "bg-gray-50 text-gray-300 border-gray-100"
+                        : on
+                          ? "bg-gray-900 text-white border-gray-900"
+                          : "bg-white border-gray-300"
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <ReasonFields reason={reason} setReason={setReason} comment={comment} setComment={setComment} />
+          {err && <p className="text-sm text-red-600">{err}</p>}
+          <button
+            className="btn-primary w-full"
+            disabled={pending || !reason || mins.length === 0}
+            onClick={() =>
+              run(() => closeSlotsAction({ target: p.target, date, minutes: mins, reason, comment }))
+            }
+          >
+            {pending
+              ? "Закрываем…"
+              : mins.length <= 1
+                ? "Закрыть слот"
+                : allOn
+                  ? "Закрыть весь день"
+                  : `Закрыть ${mins.length} ${plural(mins.length, "слот", "слота", "слотов")}`}
+          </button>
+        </>
+      )}
     </Modal>
   );
 }
@@ -365,7 +423,7 @@ function CloseForm(p: Props & { onDone: () => void }) {
           <div className="grid grid-cols-3 gap-1.5">
             {p.times.map((t) => {
               const c = p.cells[`${date}|${t.minutes}`];
-              const disabled = !!c?.past || !!c?.block;
+              const disabled = !!c?.past || !!c?.block || !!c?.booking;
               const on = mins.includes(t.minutes);
               return (
                 <button
@@ -394,7 +452,7 @@ function CloseForm(p: Props & { onDone: () => void }) {
                 p.times
                   .filter((t) => {
                     const c = p.cells[`${date}|${t.minutes}`];
-                    return !c?.past && !c?.block;
+                    return !c?.past && !c?.block && !c?.booking;
                   })
                   .map((t) => t.minutes),
               )

@@ -21,6 +21,9 @@ function check(reason: string, comment: string): string | null {
 
 function humanError(msg: string) {
   if (/row-level security/i.test(msg)) return "Нет прав на это действие";
+  const m = msg.match(/BOOKING_CONFLICT:(.*)\|(.*)/);
+  if (m)
+    return `На это время уже есть бронь (${m[1].trim()}, ${m[2].trim()}). Сначала РОП должен отменить или перенести встречу.`;
   return msg;
 }
 

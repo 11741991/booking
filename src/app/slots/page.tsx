@@ -1,7 +1,7 @@
 import { requireRole } from "@/lib/auth";
 import { AppShell } from "@/components/app-shell";
-import { WeekGrid } from "@/components/week-grid";
 import { getGrid } from "@/lib/schedule";
+import { SlotsView } from "./slots-view";
 
 export default async function SlotsPage() {
   const user = await requireRole("hunter", "rop", "admin");
@@ -20,50 +20,18 @@ export default async function SlotsPage() {
           Нет активных клоузеров. Админ может назначить роль «Клоузер» в разделе «Сотрудники».
         </div>
       ) : (
-        <div className="card p-2 sm:p-4">
-          <WeekGrid
-            days={grid.days}
-            times={grid.times}
-            renderCell={(date, minutes) => {
-              const slot = grid.slots[`${date}|${minutes}`];
-              if (!slot || slot.past) {
-                return <div className="h-10 rounded-md bg-gray-50" aria-label="Прошло" />;
-              }
-              const free = slot.cells.filter((c) => !c.blockId).length;
-              return free > 0 ? (
-                <div
-                  className="h-10 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-800 flex flex-col items-center justify-center leading-none"
-                  title={`Свободно: ${free} из ${total}`}
-                >
-                  <span className="font-semibold text-sm">{free}</span>
-                  <span className="text-[10px] hidden sm:block mt-0.5">свободно</span>
-                </div>
-              ) : (
-                <div
-                  className="h-10 rounded-md bg-gray-100 text-gray-400 flex items-center justify-center"
-                  title="Нет свободных клоузеров"
-                >
-                  —
-                </div>
-              );
-            }}
-          />
-          <div className="flex flex-wrap gap-4 mt-3 text-xs text-gray-500">
-            <span className="inline-flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded bg-emerald-100 border border-emerald-200" /> число
-              свободных клоузеров
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded bg-gray-100" /> занято
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded bg-gray-50 border border-gray-200" /> прошло
-            </span>
-          </div>
-          <p className="text-xs text-gray-500 mt-2">
-            Запись клиента на слот появится на этапе 3.
-          </p>
-        </div>
+        <SlotsView
+          days={grid.days}
+          times={grid.times}
+          slots={grid.slots}
+          total={total}
+          meId={user.id}
+          seeAll={user.roles.includes("rop") || user.roles.includes("admin")}
+          canBook={user.roles.some((r) => r === "hunter" || r === "rop" || r === "admin")}
+          officeAddress={grid.settings.office_address}
+          tz={grid.settings.timezone}
+          slotMinutes={grid.settings.slot_minutes}
+        />
       )}
     </AppShell>
   );

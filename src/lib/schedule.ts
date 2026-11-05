@@ -16,6 +16,10 @@ export type Time = { minutes: number; label: string };
 
 export type Cell = {
   closerId: string;
+  closerName: string;
+  bookingId: string | null;
+  bookingHunterId: string | null;
+  bookingHunterName: string | null;
   blockId: string | null;
   blockKind: "once" | "recurring" | null;
   blockForAll: boolean;
@@ -103,11 +107,15 @@ type Row = {
   slot_start: string;
   slot_end: string;
   closer_id: string;
+  closer_name: string;
   block_id: string | null;
   block_kind: "once" | "recurring" | null;
   block_closer_id: string | null;
   reason: BlockReason | null;
   comment: string | null;
+  booking_id: string | null;
+  booking_hunter_id: string | null;
+  booking_hunter_name: string | null;
 };
 
 export async function getGrid(): Promise<Grid> {
@@ -144,6 +152,10 @@ export async function getGrid(): Promise<Grid> {
     };
     slots[key].cells.push({
       closerId: r.closer_id,
+      closerName: r.closer_name,
+      bookingId: r.booking_id,
+      bookingHunterId: r.booking_hunter_id,
+      bookingHunterName: r.booking_hunter_name,
       blockId: r.block_id,
       blockKind: r.block_kind,
       blockForAll: r.block_id !== null && r.block_closer_id === null,
