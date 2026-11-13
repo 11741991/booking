@@ -25,10 +25,9 @@ export async function proxy(request: NextRequest) {
     },
   );
 
-  // Обновляет сессию (refresh token) — обязательно вызывать
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Проверяет подпись токена локально (без похода на сервер авторизации) и обновляет сессию при необходимости
+  const { data } = await supabase.auth.getClaims();
+  const user = data?.claims?.sub ? data.claims : null;
 
   const { pathname } = request.nextUrl;
   const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));

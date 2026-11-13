@@ -9,10 +9,8 @@ export { ROLE_LABELS } from "@/lib/roles";
 /** Текущий сотрудник. Если не залогинен → /login; залогинен, но не в списке → /no-access */
 export const requireUser = cache(async function requireUser(): Promise<AppUser> {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const { data: auth } = await supabase.auth.getClaims();
+  if (!auth?.claims?.sub) redirect("/login");
 
   const { data } = await supabase.rpc("link_auth_user");
   const appUser = (Array.isArray(data) ? data[0] : data) as AppUser | null;
