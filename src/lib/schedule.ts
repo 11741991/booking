@@ -41,6 +41,7 @@ export type GridSlot = {
 };
 
 export type Grid = {
+  timing: string;
   settings: Settings;
   days: Day[];
   times: Time[];
@@ -125,9 +126,14 @@ type Row = {
 
 export async function getGrid(): Promise<Grid> {
   const supabase = await createClient();
+  const t0 = Date.now();
+  let tRpc = 0;
   const [settings, { data: rows, error }, { data: closers }] = await Promise.all([
     getSettings(),
-    supabase.rpc("slot_availability"),
+    supabase.rpc("slot_availability").then((r) => {
+      tRpc = Date.now() - t0;
+      return r;
+    }),
     supabase
       .from("users")
       .select("id,name,roles")
@@ -171,6 +177,7 @@ export async function getGrid(): Promise<Grid> {
   }
 
   return {
+    timing: `rpc=${tRpc}ms rows=${(rows ?? []).length} total=${Date.now() - t0}ms`,
     settings,
     days,
     times,
