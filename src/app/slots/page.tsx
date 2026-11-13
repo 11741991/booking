@@ -40,7 +40,7 @@ export default async function SlotsPage() {
     <AppShell user={user}>
       <div className="flex items-baseline justify-between gap-2 mb-3">
         <h1 className="text-lg font-semibold">Свободные слоты</h1>
-        <span className="text-xs text-gray-500" data-timing={grid.timing}>GMT+5 · клоузеров: {total}</span>
+        <span className="text-xs text-gray-500">GMT+5 · клоузеров: {total}</span>
       </div>
 
       {total === 0 ? (
