@@ -6,6 +6,7 @@ type Values = {
   work_start_hour: number;
   work_end_hour: number;
   slot_minutes: number;
+  meeting_minutes: number;
   booking_horizon_days: number;
   office_address: string;
   timezone: string;
@@ -28,8 +29,16 @@ export function SettingsForm({ values }: { values: Values }) {
           <input name="work_end_hour" type="number" min={1} max={24} defaultValue={values.work_end_hour} className="input mt-1" />
         </label>
         <label className="text-sm">
-          Длительность встречи (мин)
+          Шаг сетки (мин)
           <select name="slot_minutes" defaultValue={values.slot_minutes} className="input mt-1">
+            <option value={15}>15</option>
+            <option value={30}>30</option>
+            <option value={60}>60</option>
+          </select>
+        </label>
+        <label className="text-sm">
+          Длительность встречи (мин)
+          <select name="meeting_minutes" defaultValue={values.meeting_minutes} className="input mt-1">
             <option value={30}>30</option>
             <option value={60}>60</option>
             <option value={90}>90</option>

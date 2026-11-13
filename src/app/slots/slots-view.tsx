@@ -5,7 +5,7 @@ import { useState, useTransition } from "react";
 import { WeekGrid } from "@/components/week-grid";
 import { Modal } from "@/components/modal";
 import type { Day, GridSlot, Time } from "@/lib/schedule";
-import { REASON_LABELS, formatSlot, minutesLabel } from "@/lib/labels";
+import { GRADES, QUALS, REASON_LABELS, formatSlot, minutesLabel } from "@/lib/labels";
 import { createBookingAction, lookupAmoAction, type CreateResult } from "@/app/bookings/actions";
 import type { AmoData } from "@/lib/amo";
 
@@ -20,6 +20,7 @@ type Props = {
   officeAddress: string;
   tz: string;
   slotMinutes: number;
+  meetingMinutes: number;
 };
 
 type Busy = { text: string; bookingId: string | null; mine: boolean };
@@ -53,8 +54,8 @@ export function SlotsView(p: Props) {
           times={p.times}
           renderCell={(date, minutes) => {
             const slot = p.slots[`${date}|${minutes}`];
-            if (!slot || slot.past) return <div className="h-10 rounded-md bg-gray-50" aria-label="Прошло" />;
-            const free = slot.cells.filter((c) => !c.blockId && !c.bookingId).length;
+            if (!slot || slot.past) return <div className="h-9 rounded-md bg-gray-50" aria-label="Прошло" />;
+            const free = slot.cells.filter((c) => c.canBook).length;
             const busy = busyList(slot, p.meId);
             const dayIdx = p.days.findIndex((d) => d.date === date);
             return (
@@ -62,7 +63,7 @@ export function SlotsView(p: Props) {
                 <button
                   type="button"
                   onClick={() => setOpen(slot)}
-                  className={`h-10 w-full rounded-md border flex flex-col items-center justify-center leading-none transition ${
+                  className={`h-9 w-full rounded-md border flex flex-col items-center justify-center leading-none transition ${
                     free > 0
                       ? "bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100"
                       : "bg-gray-100 border-gray-200 text-gray-400 hover:bg-gray-200"
@@ -113,10 +114,10 @@ export function SlotsView(p: Props) {
 }
 
 function SlotDialog(p: Props & { slot: GridSlot; onClose: () => void }) {
-  const free = p.slot.cells.filter((c) => !c.blockId && !c.bookingId).length;
+  const free = p.slot.cells.filter((c) => c.canBook).length;
   const busy = busyList(p.slot, p.meId);
   const [done, setDone] = useState<Extract<CreateResult, { ok: true }> | null>(null);
-  const title = `${formatSlot(p.slot.start, p.tz)}–${minutesLabel(p.slot.minutes + p.slotMinutes)}`;
+  const title = `${formatSlot(p.slot.start, p.tz)}–${minutesLabel(p.slot.minutes + p.meetingMinutes)}`;
 
   if (done) {
     return (
@@ -158,7 +159,9 @@ function SlotDialog(p: Props & { slot: GridSlot; onClose: () => void }) {
       )}
 
       {free === 0 ? (
-        <p className="text-sm text-gray-600">На это время свободных клоузеров нет.</p>
+        <p className="text-sm text-gray-600">
+          На это время свободных клоузеров нет (встреча длится {p.meetingMinutes} мин, нужен свободный клоузер на всё время).
+        </p>
       ) : !p.canBook ? (
         <p className="text-sm text-gray-600">Свободно клоузеров: {free}.</p>
       ) : (
@@ -176,6 +179,8 @@ function BookingForm(p: Props & { slot: GridSlot; free: number; onDone: (r: Extr
   const [format, setFormat] = useState<"online" | "offline" | "">("");
   const [meetingUrl, setMeetingUrl] = useState("");
   const [comment, setComment] = useState("");
+  const [grade, setGrade] = useState("");
+  const [qual, setQual] = useState("");
   const [amo, setAmo] = useState<AmoData | null>(null);
   const [amoMsg, setAmoMsg] = useState<string | null>(null);
   const [amoLoading, setAmoLoading] = useState(false);
@@ -200,6 +205,8 @@ function BookingForm(p: Props & { slot: GridSlot; free: number; onDone: (r: Extr
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (!grade) return setErr("Укажите класс обучения");
+    if (!qual) return setErr("Укажите степень квала");
     if (!format) return setErr("Выберите формат встречи");
     setErr(null);
     start(async () => {
@@ -211,6 +218,8 @@ function BookingForm(p: Props & { slot: GridSlot; free: number; onDone: (r: Extr
         clientPhone: phone,
         crmUrl,
         comment,
+        grade,
+        qual,
       });
       if (r.ok) {
         p.onDone(r);
@@ -263,6 +272,35 @@ function BookingForm(p: Props & { slot: GridSlot; free: number; onDone: (r: Extr
             required
           />
         </label>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <label className="block text-sm">
+          Класс обучения *
+          <select className="input mt-1" value={grade} onChange={(e) => setGrade(e.target.value)} required>
+            <option value="">— выберите —</option>
+            {GRADES.map((g) => (
+              <option key={g} value={g}>
+                {g}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="text-sm">
+          Степень квала *
+          <div className="grid grid-cols-3 gap-1 rounded-lg bg-gray-100 p-1 mt-1">
+            {QUALS.map((q) => (
+              <button
+                key={q}
+                type="button"
+                onClick={() => setQual(q)}
+                className={`rounded-md py-1.5 ${qual === q ? "bg-white shadow-sm font-semibold" : "text-gray-600"}`}
+              >
+                {q}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       <div className="text-sm">

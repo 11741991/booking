@@ -75,14 +75,14 @@ export function ScheduleView(p: Props) {
           onDayClick={(date) => setSelected({ date, minutes: null })}
           renderCell={(date, minutes) => {
             const c = p.cells[`${date}|${minutes}`];
-            if (c?.past) return <div className="h-10 rounded-md bg-gray-50" aria-label="Прошло" />;
+            if (c?.past) return <div className="h-9 rounded-md bg-gray-50" aria-label="Прошло" />;
             const b = c?.block;
             const bk = c?.booking;
             return (
               <button
                 type="button"
                 onClick={() => setSelected({ date, minutes })}
-                className={`h-10 w-full rounded-md border text-[10px] sm:text-xs leading-tight px-0.5 transition ${
+                className={`h-9 w-full rounded-md border text-[10px] sm:text-xs leading-tight px-0.5 transition ${
                   bk
                     ? "bg-sky-100 border-sky-300 text-sky-900 font-medium"
                     : b

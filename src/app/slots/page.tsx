@@ -31,6 +31,7 @@ export default async function SlotsPage() {
           officeAddress={grid.settings.office_address}
           tz={grid.settings.timezone}
           slotMinutes={grid.settings.slot_minutes}
+          meetingMinutes={grid.settings.meeting_minutes}
         />
       )}
     </AppShell>

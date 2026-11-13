@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import type { BlockReason } from "@/lib/labels";
 import { minutesLabel, WEEKDAYS_SHORT } from "@/lib/labels";
@@ -7,6 +8,7 @@ export type Settings = {
   work_start_hour: number;
   work_end_hour: number;
   slot_minutes: number;
+  meeting_minutes: number;
   booking_horizon_days: number;
   office_address: string;
 };
@@ -20,6 +22,7 @@ export type Cell = {
   bookingId: string | null;
   bookingHunterId: string | null;
   bookingHunterName: string | null;
+  canBook: boolean;
   blockId: string | null;
   blockKind: "once" | "recurring" | null;
   blockForAll: boolean;
@@ -45,7 +48,7 @@ export type Grid = {
   slots: Record<string, GridSlot>;
 };
 
-export async function getSettings(): Promise<Settings> {
+export const getSettings = cache(async function getSettings(): Promise<Settings> {
   const supabase = await createClient();
   const { data } = await supabase.from("settings").select("key,value");
   const s = Object.fromEntries((data ?? []).map((r) => [r.key, r.value])) as Record<string, unknown>;
@@ -53,11 +56,12 @@ export async function getSettings(): Promise<Settings> {
     timezone: String(s.timezone ?? "Asia/Almaty"),
     work_start_hour: Number(s.work_start_hour ?? 12),
     work_end_hour: Number(s.work_end_hour ?? 21),
-    slot_minutes: Number(s.slot_minutes ?? 60),
+    slot_minutes: Number(s.slot_minutes ?? 30),
+    meeting_minutes: Number(s.meeting_minutes ?? 60),
     booking_horizon_days: Number(s.booking_horizon_days ?? 7),
     office_address: String(s.office_address ?? ""),
   };
-}
+});
 
 /** Дата (YYYY-MM-DD) и минуты от полуночи в часовом поясе tz */
 export function localParts(d: Date, tz: string) {
@@ -116,12 +120,13 @@ type Row = {
   booking_id: string | null;
   booking_hunter_id: string | null;
   booking_hunter_name: string | null;
+  can_book: boolean;
 };
 
 export async function getGrid(): Promise<Grid> {
   const supabase = await createClient();
-  const settings = await getSettings();
-  const [{ data: rows, error }, { data: closers }] = await Promise.all([
+  const [settings, { data: rows, error }, { data: closers }] = await Promise.all([
+    getSettings(),
     supabase.rpc("slot_availability"),
     supabase
       .from("users")
@@ -156,6 +161,7 @@ export async function getGrid(): Promise<Grid> {
       bookingId: r.booking_id,
       bookingHunterId: r.booking_hunter_id,
       bookingHunterName: r.booking_hunter_name,
+      canBook: r.can_book,
       blockId: r.block_id,
       blockKind: r.block_kind,
       blockForAll: r.block_id !== null && r.block_closer_id === null,

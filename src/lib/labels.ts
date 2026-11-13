@@ -40,19 +40,49 @@ export function minutesLabel(m: number) {
   return `${String(h).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
 }
 
-export type BookingStatus = "scheduled" | "done" | "no_show" | "cancelled";
+export type BookingStatus =
+  | "scheduled"
+  | "confirmed"
+  | "done"
+  | "no_show"
+  | "rescheduled"
+  | "not_counted"
+  | "cancelled";
+
+export const STATUSES: BookingStatus[] = [
+  "scheduled",
+  "confirmed",
+  "done",
+  "no_show",
+  "rescheduled",
+  "not_counted",
+  "cancelled",
+];
+
 export const STATUS_LABELS: Record<BookingStatus, string> = {
   scheduled: "Назначена",
-  done: "Состоялась",
-  no_show: "Не состоялась",
+  confirmed: "Подтверждена",
+  done: "Проведена",
+  no_show: "Не проведена",
+  rescheduled: "Перенос",
+  not_counted: "Эксперт не засчитал",
   cancelled: "Отменена",
 };
 export const STATUS_STYLES: Record<BookingStatus, string> = {
   scheduled: "bg-sky-50 text-sky-800 border-sky-200",
+  confirmed: "bg-indigo-50 text-indigo-800 border-indigo-200",
   done: "bg-emerald-50 text-emerald-800 border-emerald-200",
   no_show: "bg-rose-50 text-rose-800 border-rose-200",
+  rescheduled: "bg-amber-50 text-amber-800 border-amber-200",
+  not_counted: "bg-orange-50 text-orange-800 border-orange-200",
   cancelled: "bg-gray-100 text-gray-500 border-gray-200",
 };
+/** Статусы, которые ставят по итогам прошедшей встречи */
+export const RESULT_STATUSES: BookingStatus[] = ["done", "no_show", "not_counted"];
+
+export const GRADES = ["7 класс", "8 класс", "9 класс", "10 класс", "11 класс", "Окончил школу", "Студент"];
+export const QUALS = ["A", "B", "C"] as const;
+export type Qual = (typeof QUALS)[number];
 
 export type BookingFormat = "online" | "offline";
 export const FORMAT_LABELS: Record<BookingFormat, string> = { online: "Онлайн", offline: "Оффлайн" };

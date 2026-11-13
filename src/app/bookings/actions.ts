@@ -1,5 +1,6 @@
 "use server";
 import { revalidatePath } from "next/cache";
+import { GRADES, QUALS, STATUSES, type BookingStatus } from "@/lib/labels";
 import { requireRole, requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { normalizePhone } from "@/lib/phone";
@@ -13,6 +14,12 @@ const ERRORS: Record<string, string> = {
   TOO_LATE: "Встреча уже началась или закрыта — изменить нельзя.",
   NEED_LINK: "Для онлайн-встречи нужна ссылка на встречу.",
   NEED_CRM: "Нужна ссылка на сделку в CRM.",
+  USE_RESCHEDULE: "Для переноса выберите новое время.",
+  ALREADY_RESCHEDULED: "Встреча уже перенесена — меняйте статус у новой встречи.",
+  NOT_STARTED: "Итог встречи можно поставить только после её начала.",
+  CANT_RESCHEDULE: "Эту встречу перенести нельзя (она проведена, отменена или уже перенесена).",
+  CLOSER_BUSY: "Клоузер занят в это время.",
+  SLOT_TAKEN: "Время уже занято другой встречей.",
 };
 
 function human(msg: string) {
@@ -49,6 +56,8 @@ export async function createBookingAction(input: {
   clientPhone: string;
   crmUrl: string;
   comment: string;
+  grade: string;
+  qual: string;
 }): Promise<CreateResult> {
   await requireRole("hunter", "rop", "admin");
 
@@ -59,6 +68,8 @@ export async function createBookingAction(input: {
   if (!phone) return { ok: false, error: "Телефон в формате +7 7XX XXX XX XX" };
   if (!/^https?:\/\/\S+$/i.test(crmUrl)) return { ok: false, error: "Ссылка на сделку должна начинаться с https://" };
   if (input.format !== "online" && input.format !== "offline") return { ok: false, error: "Выберите формат" };
+  if (!GRADES.includes(input.grade)) return { ok: false, error: "Укажите класс обучения" };
+  if (!(QUALS as readonly string[]).includes(input.qual)) return { ok: false, error: "Укажите степень квала" };
   if (input.format === "online" && !/^https?:\/\/\S+$/i.test(input.meetingUrl.trim()))
     return { ok: false, error: "Вставьте ссылку на онлайн-встречу (https://…)" };
 
@@ -76,6 +87,8 @@ export async function createBookingAction(input: {
     p_client_phone: phone,
     p_crm_url: crmUrl,
     p_comment: input.comment,
+    p_grade: input.grade,
+    p_qual: input.qual,
     p_amo_lead_id: amoLeadId,
     p_amo_data: amoData,
   });
@@ -97,6 +110,8 @@ export async function updateMyBookingAction(input: {
   meetingUrl: string;
   crmUrl: string;
   comment: string;
+  grade: string;
+  qual: string;
 }): Promise<{ ok?: true; error?: string }> {
   await requireRole("hunter", "rop", "admin");
   const supabase = await createClient();
@@ -105,6 +120,8 @@ export async function updateMyBookingAction(input: {
     p_meeting_url: input.meetingUrl,
     p_crm_url: input.crmUrl,
     p_comment: input.comment,
+    p_grade: input.grade,
+    p_qual: input.qual,
   });
   if (error) return { error: human(error.message) };
 
@@ -135,5 +152,115 @@ export async function refreshAmoAction(id: string, crmUrl: string): Promise<{ ok
   const { error } = await supabase.rpc("set_booking_amo", { p_id: id, p_lead_id: amo.leadId, p_data: amo.data });
   if (error) return { error: error.message };
   revalidatePath(`/bookings/${id}`);
+  return { ok: true };
+}
+
+function revalidateAll(id?: string) {
+  if (id) revalidatePath(`/bookings/${id}`);
+  revalidatePath("/meetings");
+  revalidatePath("/slots");
+  revalidatePath("/schedule");
+  revalidatePath("/stats");
+}
+
+type Simple = { ok?: true; error?: string };
+
+export async function setStatusAction(id: string, status: BookingStatus, note = ""): Promise<Simple> {
+  await requireUser();
+  if (!STATUSES.includes(status)) return { error: "Неизвестный статус" };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("set_booking_status", { p_id: id, p_status: status, p_note: note || null });
+  if (error) return { error: human(error.message) };
+  revalidateAll(id);
+  return { ok: true };
+}
+
+export async function setQualAfterAction(id: string, qual: string): Promise<Simple> {
+  await requireUser();
+  if (qual && !(QUALS as readonly string[]).includes(qual)) return { error: "Квал: A, B или C" };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("set_qual_after", { p_id: id, p_qual: qual });
+  if (error) return { error: human(error.message) };
+  revalidateAll(id);
+  return { ok: true };
+}
+
+export type FreeStart = { start: string; date: string; label: string; free: number; closerIds: string[] };
+
+/** Свободные времена начала встречи на горизонт брони (для переноса) */
+export async function freeStartsAction(): Promise<{ starts: FreeStart[]; tz: string }> {
+  await requireUser();
+  const { getGrid } = await import("@/lib/schedule");
+  const grid = await getGrid();
+  const starts: FreeStart[] = Object.values(grid.slots)
+    .filter((s) => !s.past)
+    .map((s) => {
+      const ids = s.cells.filter((c) => c.canBook).map((c) => c.closerId);
+      return {
+        start: s.start,
+        date: s.date,
+        label: `${String(Math.floor(s.minutes / 60)).padStart(2, "0")}:${String(s.minutes % 60).padStart(2, "0")}`,
+        free: ids.length,
+        closerIds: ids,
+      };
+    })
+    .sort((a, b) => a.start.localeCompare(b.start));
+  return { starts, tz: grid.settings.timezone };
+}
+
+export async function rescheduleAction(id: string, newStart: string, closerId: string | null): Promise<CreateResult> {
+  await requireUser();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("reschedule_booking", {
+    p_id: id,
+    p_new_start: newStart,
+    p_closer: closerId,
+  });
+  if (error) return { ok: false, error: human(error.message), refresh: true };
+  const nb = (Array.isArray(data) ? data[0] : data) as { id: string; closer_id: string; starts_at: string };
+  const { data: closer } = await supabase.from("users").select("name").eq("id", nb.closer_id).single();
+  revalidateAll(id);
+  return { ok: true, id: nb.id, closerName: closer?.name ?? "", startsAt: nb.starts_at };
+}
+
+export async function freeClosersAction(id: string): Promise<{ id: string; name: string }[]> {
+  await requireRole("rop", "admin");
+  const supabase = await createClient();
+  const { data } = await supabase.rpc("free_closers_for", { p_id: id });
+  return (data ?? []) as { id: string; name: string }[];
+}
+
+export async function ropUpdateAction(input: {
+  id: string;
+  closerId: string;
+  clientName: string;
+  clientPhone: string;
+  crmUrl: string;
+  format: "online" | "offline";
+  meetingUrl: string;
+  comment: string;
+  grade: string;
+  qual: string;
+}): Promise<Simple> {
+  await requireRole("rop", "admin");
+  const phone = normalizePhone(input.clientPhone);
+  if (!input.clientName.trim()) return { error: "Укажите имя клиента" };
+  if (!phone) return { error: "Телефон в формате +7 7XX XXX XX XX" };
+  if (!/^https?:\/\/\S+$/i.test(input.crmUrl.trim())) return { error: "Ссылка на сделку должна начинаться с https://" };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("rop_update_booking", {
+    p_id: input.id,
+    p_closer: input.closerId,
+    p_client_name: input.clientName,
+    p_client_phone: phone,
+    p_crm_url: input.crmUrl,
+    p_format: input.format,
+    p_meeting_url: input.meetingUrl,
+    p_comment: input.comment,
+    p_grade: input.grade,
+    p_qual: input.qual,
+  });
+  if (error) return { error: human(error.message) };
+  revalidateAll(input.id);
   return { ok: true };
 }

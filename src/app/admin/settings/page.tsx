@@ -16,7 +16,8 @@ export default async function AdminSettingsPage() {
         values={{
           work_start_hour: Number(s.work_start_hour ?? 12),
           work_end_hour: Number(s.work_end_hour ?? 21),
-          slot_minutes: Number(s.slot_minutes ?? 60),
+          slot_minutes: Number(s.slot_minutes ?? 30),
+          meeting_minutes: Number(s.meeting_minutes ?? 60),
           booking_horizon_days: Number(s.booking_horizon_days ?? 7),
           office_address: String(s.office_address ?? ""),
           timezone: String(s.timezone ?? "Asia/Almaty"),

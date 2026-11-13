@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
@@ -6,7 +7,7 @@ export type { Role, AppUser } from "@/lib/roles";
 export { ROLE_LABELS } from "@/lib/roles";
 
 /** Текущий сотрудник. Если не залогинен → /login; залогинен, но не в списке → /no-access */
-export async function requireUser(): Promise<AppUser> {
+export const requireUser = cache(async function requireUser(): Promise<AppUser> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -17,7 +18,7 @@ export async function requireUser(): Promise<AppUser> {
   const appUser = (Array.isArray(data) ? data[0] : data) as AppUser | null;
   if (!appUser || !appUser.is_active) redirect("/no-access");
   return appUser;
-}
+});
 
 export async function requireRole(...roles: Role[]): Promise<AppUser> {
   const user = await requireUser();

@@ -12,6 +12,7 @@ export function navFor(user: AppUser) {
   if (r.includes("closer") || r.includes("rop") || r.includes("admin"))
     nav.push({ href: "/schedule", label: r.includes("closer") ? "Моё расписание" : "Расписание" });
   nav.push({ href: "/meetings", label: r.includes("rop") || r.includes("admin") ? "Все встречи" : "Мои встречи" });
+  nav.push({ href: "/stats", label: "Статистика" });
   if (r.includes("admin")) {
     nav.push({ href: "/admin/users", label: "Сотрудники" });
     nav.push({ href: "/admin/settings", label: "Настройки" });
