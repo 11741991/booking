@@ -199,7 +199,7 @@ export default async function StatsPage(props: PageProps<"/stats">) {
       </form>
 
       {/* KPI */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 mb-4">
+      <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-2 mb-4">
         <Kpi label="Назначено" value={total.total} sub={`онлайн ${total.online} · оффлайн ${total.offline}`} />
         <Kpi label="% проведённых" value={rate(total) === null ? "—" : `${rate(total)}%`} sub="без переносов и отмен" strong />
         {COLS.map((c) => (

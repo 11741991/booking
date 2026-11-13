@@ -1,12 +1,40 @@
 import { requireRole } from "@/lib/auth";
 import { AppShell } from "@/components/app-shell";
 import { getGrid } from "@/lib/schedule";
-import { SlotsView } from "./slots-view";
+import { SlotsView, type SlotSummary } from "./slots-view";
+import { REASON_LABELS } from "@/lib/labels";
 
 export default async function SlotsPage() {
   const user = await requireRole("hunter", "rop", "admin");
   const grid = await getGrid();
   const total = grid.closers.length;
+
+  const slots: Record<string, SlotSummary> = {};
+  for (const [key, sl] of Object.entries(grid.slots)) {
+    slots[key] = {
+      start: sl.start,
+      minutes: sl.minutes,
+      past: sl.past,
+      free: sl.past ? 0 : sl.cells.filter((c) => c.canBook).length,
+      busy: sl.past
+        ? []
+        : sl.cells
+            .filter((c) => c.bookingId || c.blockId)
+            .map((c) =>
+              c.bookingId
+                ? {
+                    text: `${c.closerName} — встреча · хантер ${c.bookingHunterName ?? "—"}`,
+                    bookingId: c.bookingId,
+                    mine: c.bookingHunterId === user.id,
+                  }
+                : {
+                    text: `${c.closerName} — ${c.reason ? REASON_LABELS[c.reason] : "закрыто"}${c.comment ? ` (${c.comment})` : ""}`,
+                    bookingId: null,
+                    mine: false,
+                  },
+            ),
+    };
+  }
 
   return (
     <AppShell user={user}>
@@ -23,7 +51,7 @@ export default async function SlotsPage() {
         <SlotsView
           days={grid.days}
           times={grid.times}
-          slots={grid.slots}
+          slots={slots}
           total={total}
           meId={user.id}
           seeAll={user.roles.includes("rop") || user.roles.includes("admin")}

@@ -4,15 +4,15 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { WeekGrid } from "@/components/week-grid";
 import { Modal } from "@/components/modal";
-import type { Day, GridSlot, Time } from "@/lib/schedule";
-import { GRADES, QUALS, REASON_LABELS, formatSlot, minutesLabel } from "@/lib/labels";
+import type { Day, Time } from "@/lib/schedule";
+import { GRADES, QUALS, formatSlot, minutesLabel } from "@/lib/labels";
 import { createBookingAction, lookupAmoAction, type CreateResult } from "@/app/bookings/actions";
 import type { AmoData } from "@/lib/amo";
 
 type Props = {
   days: Day[];
   times: Time[];
-  slots: Record<string, GridSlot>;
+  slots: Record<string, SlotSummary>;
   total: number;
   meId: string;
   seeAll: boolean;
@@ -23,25 +23,12 @@ type Props = {
   meetingMinutes: number;
 };
 
-type Busy = { text: string; bookingId: string | null; mine: boolean };
+export type Busy = { text: string; bookingId: string | null; mine: boolean };
+/** Сжатая ячейка сетки: только то, что нужно хантеру */
+export type SlotSummary = { start: string; minutes: number; past: boolean; free: number; busy: Busy[] };
 
-function busyList(slot: GridSlot, meId: string): Busy[] {
-  return slot.cells
-    .filter((c) => c.bookingId || c.blockId)
-    .map((c) =>
-      c.bookingId
-        ? {
-            text: `${c.closerName} — встреча · хантер ${c.bookingHunterName ?? "—"}`,
-            bookingId: c.bookingId,
-            mine: c.bookingHunterId === meId,
-          }
-        : {
-            text: `${c.closerName} — ${c.reason ? REASON_LABELS[c.reason] : "закрыто"}${c.comment ? ` (${c.comment})` : ""}`,
-            bookingId: null,
-            mine: false,
-          },
-    );
-}
+type GridSlot = SlotSummary;
+const busyList = (slot: SlotSummary) => slot.busy;
 
 export function SlotsView(p: Props) {
   const [open, setOpen] = useState<GridSlot | null>(null);
@@ -55,8 +42,8 @@ export function SlotsView(p: Props) {
           renderCell={(date, minutes) => {
             const slot = p.slots[`${date}|${minutes}`];
             if (!slot || slot.past) return <div className="h-9 rounded-md bg-gray-50" aria-label="Прошло" />;
-            const free = slot.cells.filter((c) => c.canBook).length;
-            const busy = busyList(slot, p.meId);
+            const free = slot.free;
+            const busy = busyList(slot);
             const dayIdx = p.days.findIndex((d) => d.date === date);
             return (
               <div className="relative group">
@@ -114,8 +101,8 @@ export function SlotsView(p: Props) {
 }
 
 function SlotDialog(p: Props & { slot: GridSlot; onClose: () => void }) {
-  const free = p.slot.cells.filter((c) => c.canBook).length;
-  const busy = busyList(p.slot, p.meId);
+  const free = p.slot.free;
+  const busy = busyList(p.slot);
   const [done, setDone] = useState<Extract<CreateResult, { ok: true }> | null>(null);
   const title = `${formatSlot(p.slot.start, p.tz)}–${minutesLabel(p.slot.minutes + p.meetingMinutes)}`;
 
