@@ -80,7 +80,26 @@ export const STATUS_STYLES: Record<BookingStatus, string> = {
 /** Статусы, которые ставят по итогам прошедшей встречи */
 export const RESULT_STATUSES: BookingStatus[] = ["done", "no_show", "not_counted"];
 
-export const GRADES = ["7 класс", "8 класс", "9 класс", "10 класс", "11 класс", "Окончил школу", "Студент"];
+export const GRADES = [
+  "9 класс",
+  "10 класс",
+  "11 класс",
+  "12 класс",
+  "1 курс колледжа",
+  "2 курс колледжа",
+  "3 курс колледжа",
+  "4 курс колледжа",
+  "1 курс университета",
+  "2 курс университета",
+  "3 курс университета",
+  "4 курс университета",
+  "Окончил школу",
+  "Окончил колледж",
+  "Окончил ВУЗ",
+];
+/** Список классов + текущее значение, если оно из старого списка (чтобы не терялось при правке) */
+export const gradeOptions = (current?: string | null) =>
+  current && !GRADES.includes(current) ? [current, ...GRADES] : GRADES;
 export const QUALS = ["A", "B", "C"] as const;
 export type Qual = (typeof QUALS)[number];
 

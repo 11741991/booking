@@ -3,8 +3,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { Modal } from "@/components/modal";
+import { ResultDialog } from "@/components/result-dialog";
 import {
-  GRADES,
+  gradeOptions,
   QUALS,
   RESULT_STATUSES,
   STATUSES,
@@ -20,7 +21,8 @@ import {
   refreshAmoAction,
   rescheduleAction,
   ropUpdateAction,
-  setQualAfterAction,
+  retryAmoSyncAction,
+  setMeetingResultAction,
   setStatusAction,
   updateMyBookingAction,
   type CreateResult,
@@ -76,9 +78,22 @@ export type Perms = {
   started: boolean;
 };
 
-export function StatusPanel({ id, status, perms }: { id: string; status: BookingStatus; perms: Perms }) {
+export function StatusPanel({
+  id,
+  status,
+  perms,
+  qualAfter,
+  noteAfter,
+}: {
+  id: string;
+  status: BookingStatus;
+  perms: Perms;
+  qualAfter: string | null;
+  noteAfter: string | null;
+}) {
   const { pending, err, run } = useRun();
   const [note, setNote] = useState("");
+  const [result, setResult] = useState<BookingStatus | null>(null);
   const terminal = status === "rescheduled";
 
   const buttons: BookingStatus[] = [];
@@ -112,7 +127,7 @@ export function StatusPanel({ id, status, perms }: { id: string; status: Booking
               <button
                 key={s}
                 disabled={pending}
-                onClick={() => run(() => setStatusAction(id, s, note))}
+                onClick={() => (RESULT_STATUSES.includes(s) ? setResult(s) : run(() => setStatusAction(id, s, note)))}
                 className={`rounded-full border px-3 py-1.5 text-sm ${STATUS_STYLES[s]} hover:opacity-80`}
               >
                 {STATUS_LABELS[s]}
@@ -122,7 +137,7 @@ export function StatusPanel({ id, status, perms }: { id: string; status: Booking
           {perms.isRop && (
             <input
               className="input"
-              placeholder="Комментарий к смене статуса (необязательно)"
+              placeholder="Комментарий (для «Подтверждена», «Отменена»)"
               value={note}
               onChange={(e) => setNote(e.target.value)}
             />
@@ -133,33 +148,118 @@ export function StatusPanel({ id, status, perms }: { id: string; status: Booking
         <p className="text-xs text-gray-500">Итог встречи можно будет поставить после её начала.</p>
       )}
       {err && <p className="text-sm text-red-600">{err}</p>}
+      {result && (
+        <ResultDialog id={id} status={result} initialQual={qualAfter} initialNote={noteAfter} onClose={() => setResult(null)} />
+      )}
     </div>
   );
 }
 
-export function QualAfter({ id, value, canEdit }: { id: string; value: string | null; canEdit: boolean }) {
+/** Итог встречи: квал после встречи, примечание, отметка о передаче в amoCRM */
+export function MeetingResult({
+  id,
+  status,
+  qual,
+  note,
+  canEdit,
+  amoSync,
+}: {
+  id: string;
+  status: BookingStatus;
+  qual: string | null;
+  note: string | null;
+  canEdit: boolean;
+  amoSync: { ok: boolean; message: string } | null;
+}) {
   const { pending, err, run } = useRun();
+  const [q, setQ] = useState(qual ?? "");
+  const [n, setN] = useState(note ?? "");
+  const [saved, setSaved] = useState(false);
+  const [amoMsg, setAmoMsg] = useState<string | null>(null);
+  const dirty = q !== (qual ?? "") || n !== (note ?? "");
+  const qualRequired = status === "done" || status === "not_counted";
+
   return (
-    <div className="card space-y-2">
-      <h2 className="font-medium">Квал после встречи</h2>
+    <div className="card space-y-3">
+      <h2 className="font-medium">Итог встречи</h2>
       {canEdit ? (
-        <div className="grid grid-cols-3 gap-1 rounded-lg bg-gray-100 p-1">
-          {QUALS.map((q) => (
+        <>
+          <div className="text-sm">
+            Квал после встречи
+            <div className="grid grid-cols-3 gap-1 rounded-lg bg-gray-100 p-1 mt-1">
+              {QUALS.map((x) => (
+                <button
+                  key={x}
+                  type="button"
+                  onClick={() => {
+                    setQ(q === x && !qualRequired ? "" : x);
+                    setSaved(false);
+                  }}
+                  className={`rounded-md py-1.5 ${q === x ? "bg-white shadow-sm font-semibold" : "text-gray-600"}`}
+                >
+                  {x}
+                </button>
+              ))}
+            </div>
+          </div>
+          <label className="block text-sm">
+            Примечание после встречи
+            <textarea
+              className="input mt-1"
+              rows={3}
+              value={n}
+              onChange={(e) => {
+                setN(e.target.value);
+                setSaved(false);
+              }}
+            />
+          </label>
+          {err && <p className="text-sm text-red-600">{err}</p>}
+          {(dirty || saved) && (
             <button
-              key={q}
-              disabled={pending}
-              onClick={() => run(() => setQualAfterAction(id, value === q ? "" : q))}
-              className={`rounded-md py-1.5 ${value === q ? "bg-white shadow-sm font-semibold" : "text-gray-600"}`}
+              className="btn-primary w-full"
+              disabled={pending || !dirty}
+              onClick={() => run(() => setMeetingResultAction(id, q, n), () => setSaved(true))}
             >
-              {q}
+              {pending ? "Сохраняем…" : saved && !dirty ? "Сохранено" : "Сохранить итог"}
             </button>
-          ))}
-        </div>
+          )}
+        </>
       ) : (
-        <div className="text-sm">{value ?? <span className="text-gray-400">не указан</span>}</div>
+        <dl className="grid grid-cols-[100px_1fr] gap-x-3 gap-y-1.5 text-sm">
+          <dt className="text-gray-500">Квал</dt>
+          <dd>{qual ?? <span className="text-gray-400">не указан</span>}</dd>
+          <dt className="text-gray-500">Примечание</dt>
+          <dd className="whitespace-pre-wrap">{note ?? <span className="text-gray-400">—</span>}</dd>
+        </dl>
       )}
-      {canEdit && <p className="text-xs text-gray-500">Ставит клоузер после встречи.</p>}
-      {err && <p className="text-sm text-red-600">{err}</p>}
+
+      {status === "done" && (
+        <div
+          className={`rounded-lg border px-3 py-2 text-xs space-y-1.5 ${
+            amoSync?.ok ? "bg-emerald-50 border-emerald-200 text-emerald-900" : "bg-amber-50 border-amber-200 text-amber-900"
+          }`}
+        >
+          <div>
+            <b>amoCRM:</b> {amoMsg ?? amoSync?.message ?? "итог ещё не передавался"}
+          </div>
+          {canEdit && !amoSync?.ok && (
+            <button
+              className="underline"
+              disabled={pending}
+              onClick={() =>
+                run(async () => {
+                  const r = await retryAmoSyncAction(id);
+                  if (r.amo) setAmoMsg(r.amo);
+                  return r;
+                })
+              }
+            >
+              {pending ? "Передаём…" : "Повторить передачу в amoCRM"}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -432,7 +532,7 @@ function GradeQual({
         Класс обучения
         <select className="input mt-1" value={grade} onChange={(e) => setGrade(e.target.value)}>
           <option value="">—</option>
-          {GRADES.map((g) => (
+          {gradeOptions(grade).map((g) => (
             <option key={g} value={g}>
               {g}
             </option>

@@ -30,12 +30,7 @@ const COLS: { key: string; label: string; match: (r: Row, now: Date) => boolean;
   {
     key: "pending",
     label: "Ждут итога",
-    match: (r, now) => (r.status === "scheduled" || r.status === "confirmed") && new Date(r.starts_at) <= now,
-  },
-  {
-    key: "upcoming",
-    label: "Впереди",
-    match: (r, now) => (r.status === "scheduled" || r.status === "confirmed") && new Date(r.starts_at) > now,
+    match: (r) => r.status === "scheduled" || r.status === "confirmed",
   },
 ];
 
@@ -92,6 +87,7 @@ export default async function StatsPage(props: PageProps<"/stats">) {
     )
     .gte("starts_at", dayStartIso(from))
     .lt("starts_at", dayStartIso(shiftDate(to, 1)))
+    .lte("starts_at", new Date().toISOString()) // только прошедшие встречи
     .order("starts_at")
     .limit(5000);
   if (hunter) q = q.eq("hunter_id", hunter);
@@ -199,8 +195,8 @@ export default async function StatsPage(props: PageProps<"/stats">) {
       </form>
 
       {/* KPI */}
-      <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-2 mb-4">
-        <Kpi label="Назначено" value={total.total} sub={`онлайн ${total.online} · оффлайн ${total.offline}`} />
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 mb-4">
+        <Kpi label="Прошло встреч" value={total.total} sub={`онлайн ${total.online} · оффлайн ${total.offline}`} />
         <Kpi label="% проведённых" value={rate(total) === null ? "—" : `${rate(total)}%`} sub="без переносов и отмен" strong />
         {COLS.map((c) => (
           <Link key={c.key} href={link({ status: statusFilter === c.key ? "" : c.key })}>
@@ -242,7 +238,8 @@ export default async function StatsPage(props: PageProps<"/stats">) {
       {isRop && <StatsTable title="По клоузерам" first="Клоузер" rows={byCloser} highlight={statusFilter} />}
 
       <p className="text-xs text-gray-500 mt-2">
-        «% проведённых» = проведённые ÷ (назначенные − переносы − отмены). Перенесённая встреча считается в день старого
+        В статистике только прошедшие встречи — предстоящие не учитываются. «% проведённых» = проведённые ÷ (все
+        прошедшие − переносы − отмены). Перенесённая встреча считается в день старого
         времени как «Перенос», а новая — в свой день.
       </p>
     </AppShell>
@@ -282,7 +279,7 @@ function StatsTable({
             <thead>
               <tr className="text-xs text-gray-500 border-y border-gray-100 bg-gray-50">
                 <th className="text-left font-medium px-4 py-2 sticky left-0 bg-gray-50">{first}</th>
-                <th className="font-medium px-2">Назнач.</th>
+                <th className="font-medium px-2">Встреч</th>
                 <th className="font-medium px-2">%</th>
                 {COLS.map((c) => (
                   <th key={c.key} className={`font-medium px-2 whitespace-nowrap ${highlight === c.key ? "text-gray-900" : ""}`}>

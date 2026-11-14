@@ -4,7 +4,7 @@ import { GRADES, QUALS, STATUSES, type BookingStatus } from "@/lib/labels";
 import { requireRole, requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { normalizePhone } from "@/lib/phone";
-import { fetchAmoLead, parseAmoLink, type AmoData } from "@/lib/amo";
+import { fetchAmoLead, parseAmoLink, syncAmoDone, type AmoData } from "@/lib/amo";
 
 const ERRORS: Record<string, string> = {
   NO_FREE_CLOSER: "На это время свободных клоузеров уже нет. Выберите другое время.",
@@ -20,6 +20,8 @@ const ERRORS: Record<string, string> = {
   CANT_RESCHEDULE: "Эту встречу перенести нельзя (она проведена, отменена или уже перенесена).",
   CLOSER_BUSY: "Клоузер занят в это время.",
   SLOT_TAKEN: "Время уже занято другой встречей.",
+  NEED_QUAL_AFTER: "Укажите квал после встречи (A, B или C).",
+  NEED_NOTE_AFTER: "Для «Эксперт не засчитал» примечание обязательно.",
 };
 
 function human(msg: string) {
@@ -165,21 +167,80 @@ function revalidateAll(id?: string) {
 
 type Simple = { ok?: true; error?: string };
 
-export async function setStatusAction(id: string, status: BookingStatus, note = ""): Promise<Simple> {
-  await requireUser();
-  if (!STATUSES.includes(status)) return { error: "Неизвестный статус" };
+type StatusResult = Simple & { amo?: string };
+
+type SyncRow = {
+  status: BookingStatus;
+  crm_url: string;
+  qual_after: string | null;
+  note_after: string | null;
+  closer: { name: string } | null;
+};
+
+/** Передать итог проведённой встречи в amoCRM и запомнить результат в карточке */
+async function pushDoneToAmo(id: string): Promise<string> {
   const supabase = await createClient();
-  const { error } = await supabase.rpc("set_booking_status", { p_id: id, p_status: status, p_note: note || null });
-  if (error) return { error: human(error.message) };
-  revalidateAll(id);
-  return { ok: true };
+  const { data } = await supabase
+    .from("bookings")
+    .select("status,crm_url,qual_after,note_after,closer:users!bookings_closer_id_fkey(name)")
+    .eq("id", id)
+    .maybeSingle();
+  const b = data as unknown as SyncRow | null;
+  if (!b || b.status !== "done") return "";
+  const sync = await syncAmoDone({
+    crmUrl: b.crm_url,
+    closerName: b.closer?.name ?? "",
+    qualAfter: b.qual_after,
+    noteAfter: b.note_after,
+  });
+  await supabase.rpc("set_booking_amo_sync", { p_id: id, p_sync: sync });
+  return sync.message;
 }
 
-export async function setQualAfterAction(id: string, qual: string): Promise<Simple> {
+export async function setStatusAction(
+  id: string,
+  status: BookingStatus,
+  note = "",
+  result?: { qualAfter: string; noteAfter: string },
+): Promise<StatusResult> {
   await requireUser();
-  if (qual && !(QUALS as readonly string[]).includes(qual)) return { error: "Квал: A, B или C" };
+  if (!STATUSES.includes(status)) return { error: "Неизвестный статус" };
+  if (result) {
+    if (result.qualAfter && !(QUALS as readonly string[]).includes(result.qualAfter)) return { error: ERRORS.NEED_QUAL_AFTER };
+    if ((status === "done" || status === "not_counted") && !result.qualAfter) return { error: ERRORS.NEED_QUAL_AFTER };
+    if (status === "not_counted" && !result.noteAfter.trim()) return { error: ERRORS.NEED_NOTE_AFTER };
+  }
   const supabase = await createClient();
-  const { error } = await supabase.rpc("set_qual_after", { p_id: id, p_qual: qual });
+  const { data: before } = await supabase.from("bookings").select("status").eq("id", id).maybeSingle();
+  const { error } = await supabase.rpc("set_booking_status", {
+    p_id: id,
+    p_status: status,
+    p_note: note || null,
+    p_qual_after: result?.qualAfter || null,
+    p_note_after: result?.noteAfter || null,
+  });
+  if (error) return { error: human(error.message) };
+
+  let amo: string | undefined;
+  if (status === "done" && before?.status !== "done") amo = await pushDoneToAmo(id);
+
+  revalidateAll(id);
+  return { ok: true, amo };
+}
+
+export async function retryAmoSyncAction(id: string): Promise<StatusResult> {
+  await requireUser();
+  const amo = await pushDoneToAmo(id);
+  if (!amo) return { error: "Передавать в amoCRM можно только проведённые встречи" };
+  revalidatePath(`/bookings/${id}`);
+  return { ok: true, amo };
+}
+
+export async function setMeetingResultAction(id: string, qual: string, note: string): Promise<Simple> {
+  await requireUser();
+  if (qual && !(QUALS as readonly string[]).includes(qual)) return { error: ERRORS.NEED_QUAL_AFTER };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("set_meeting_result", { p_id: id, p_qual: qual, p_note: note });
   if (error) return { error: human(error.message) };
   revalidateAll(id);
   return { ok: true };

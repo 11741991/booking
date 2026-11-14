@@ -17,7 +17,7 @@ import type { AmoData } from "@/lib/amo";
 import {
   CancelButton,
   EditBooking,
-  QualAfter,
+  MeetingResult,
   RefreshAmo,
   RescheduleButton,
   RopEdit,
@@ -41,6 +41,8 @@ type BookingRow = {
   student_grade: string | null;
   qual: string | null;
   qual_after: string | null;
+  note_after: string | null;
+  amo_sync: { ok: boolean; message: string } | null;
   rescheduled_from: string | null;
   rescheduled_to: string | null;
   amo_data: AmoData | null;
@@ -197,7 +199,13 @@ export default async function BookingPage(props: PageProps<"/bookings/[id]">) {
         </div>
 
         <div className="space-y-4">
-          <StatusPanel id={b.id} status={b.status} perms={{ isRop, isHunterOwner, isCloserOwner, started }} />
+          <StatusPanel
+            id={b.id}
+            status={b.status}
+            perms={{ isRop, isHunterOwner, isCloserOwner, started }}
+            qualAfter={b.qual_after}
+            noteAfter={b.note_after}
+          />
 
           {(canReschedule || (isRop && b.status !== "cancelled" && b.status !== "rescheduled")) && (
             <div className="space-y-2">
@@ -239,7 +247,15 @@ export default async function BookingPage(props: PageProps<"/bookings/[id]">) {
             />
           )}
 
-          <QualAfter id={b.id} value={b.qual_after} canEdit={isRop || isCloserOwner} />
+          <MeetingResult
+            key={`${b.status}|${b.qual_after}|${b.note_after}`}
+            id={b.id}
+            status={b.status}
+            qual={b.qual_after}
+            note={b.note_after}
+            canEdit={(isRop || isCloserOwner) && b.status !== "rescheduled"}
+            amoSync={b.amo_sync}
+          />
 
           <div className="card space-y-2">
             <h2 className="font-medium">amoCRM</h2>

@@ -26,6 +26,7 @@ type Row = {
   student_grade: string | null;
   qual: string | null;
   qual_after: string | null;
+  note_after: string | null;
   hunter: { name: string } | null;
   closer: { name: string } | null;
 };
@@ -52,7 +53,7 @@ export default async function MeetingsPage(props: PageProps<"/meetings">) {
   let q = supabase
     .from("bookings")
     .select(
-      "id,starts_at,client_name,format,status,hunter_id,closer_id,student_grade,qual,qual_after,hunter:users!bookings_hunter_id_fkey(name),closer:users!bookings_closer_id_fkey(name)",
+      "id,starts_at,client_name,format,status,hunter_id,closer_id,student_grade,qual,qual_after,note_after,hunter:users!bookings_hunter_id_fkey(name),closer:users!bookings_closer_id_fkey(name)",
     )
     .limit(500);
   q = tab === "upcoming" ? q.gt("ends_at", nowIso).order("starts_at") : q.lte("starts_at", nowIso).order("starts_at", { ascending: false });
@@ -225,7 +226,7 @@ export default async function MeetingsPage(props: PageProps<"/meetings">) {
                           </div>
                         </div>
                       </Link>
-                      <StatusSelect id={r.id} status={r.status} options={optionsFor(r)} />
+                      <StatusSelect id={r.id} status={r.status} options={optionsFor(r)} qualAfter={r.qual_after} noteAfter={r.note_after} />
                     </div>
                   );
                 })}
