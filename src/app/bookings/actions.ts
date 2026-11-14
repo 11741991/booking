@@ -20,6 +20,7 @@ const ERRORS: Record<string, string> = {
   CANT_RESCHEDULE: "Эту встречу перенести нельзя (она проведена, отменена или уже перенесена).",
   CLOSER_BUSY: "Клоузер занят в это время.",
   SLOT_TAKEN: "Время уже занято другой встречей.",
+  RESTORE_BUSY: "Восстановить нельзя: у клоузера на это время уже стоит другая встреча.",
   NEED_QUAL_AFTER: "Укажите квал после встречи (A, B или C).",
   NEED_NOTE_AFTER: "Для «Эксперт не засчитал» примечание обязательно.",
 };
@@ -323,5 +324,24 @@ export async function ropUpdateAction(input: {
   });
   if (error) return { error: human(error.message) };
   revalidateAll(input.id);
+  return { ok: true };
+}
+
+/** В корзину: встреча уходит из статистики и списков, слот освобождается. Только РОП и админ */
+export async function trashBookingAction(id: string): Promise<Simple> {
+  await requireRole("rop", "admin");
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("trash_booking", { p_id: id });
+  if (error) return { error: human(error.message) };
+  revalidateAll(id);
+  return { ok: true };
+}
+
+export async function restoreBookingAction(id: string): Promise<Simple> {
+  await requireRole("rop", "admin");
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("restore_booking", { p_id: id });
+  if (error) return { error: human(error.message) };
+  revalidateAll(id);
   return { ok: true };
 }

@@ -20,8 +20,10 @@ import {
   MeetingResult,
   RefreshAmo,
   RescheduleButton,
+  RestoreButton,
   RopEdit,
   StatusPanel,
+  TrashButton,
 } from "./card-actions";
 
 type BookingRow = {
@@ -43,6 +45,7 @@ type BookingRow = {
   qual_after: string | null;
   note_after: string | null;
   amo_sync: { ok: boolean; message: string } | null;
+  deleted_at: string | null;
   rescheduled_from: string | null;
   rescheduled_to: string | null;
   amo_data: AmoData | null;
@@ -91,14 +94,25 @@ export default async function BookingPage(props: PageProps<"/bookings/[id]">) {
   const isCloserOwner = b.closer_id === me.id;
   const started = new Date(b.starts_at) <= new Date();
   const active = b.status === "scheduled" || b.status === "confirmed";
-  const canHunterEdit = isHunterOwner && active && !started;
-  const canReschedule = (isRop || isHunterOwner) && ["scheduled", "confirmed", "no_show"].includes(b.status);
+  const deleted = b.deleted_at !== null;
+  const canHunterEdit = !deleted && isHunterOwner && active && !started;
+  const canReschedule = !deleted && (isRop || isHunterOwner) && ["scheduled", "confirmed", "no_show"].includes(b.status);
 
   return (
     <AppShell user={me}>
       <Link href="/meetings" className="text-sm text-gray-500 hover:text-gray-800">
         ← Встречи
       </Link>
+
+      {deleted && (
+        <div className="mt-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="text-sm text-red-900">
+            <b>Встреча в корзине</b> с {formatSlot(b.deleted_at!, tz)}. Она не учитывается в статистике и не занимает
+            слот.
+          </div>
+          <RestoreButton id={b.id} />
+        </div>
+      )}
 
       <div className="mt-2 grid gap-4 md:grid-cols-[1fr_320px]">
         <div className="space-y-4">
@@ -199,6 +213,7 @@ export default async function BookingPage(props: PageProps<"/bookings/[id]">) {
         </div>
 
         <div className="space-y-4">
+          {!deleted && (
           <StatusPanel
             id={b.id}
             status={b.status}
@@ -206,8 +221,9 @@ export default async function BookingPage(props: PageProps<"/bookings/[id]">) {
             qualAfter={b.qual_after}
             noteAfter={b.note_after}
           />
+          )}
 
-          {(canReschedule || (isRop && b.status !== "cancelled" && b.status !== "rescheduled")) && (
+          {!deleted && (canReschedule || (isRop && b.status !== "cancelled" && b.status !== "rescheduled")) && (
             <div className="space-y-2">
               {canReschedule && (
                 <RescheduleButton
@@ -253,7 +269,7 @@ export default async function BookingPage(props: PageProps<"/bookings/[id]">) {
             status={b.status}
             qual={b.qual_after}
             note={b.note_after}
-            canEdit={(isRop || isCloserOwner) && b.status !== "rescheduled"}
+            canEdit={!deleted && (isRop || isCloserOwner) && b.status !== "rescheduled"}
             amoSync={b.amo_sync}
           />
 
@@ -291,6 +307,7 @@ export default async function BookingPage(props: PageProps<"/bookings/[id]">) {
           </div>
 
           <p className="text-xs text-gray-400 px-1">Создана: {formatSlot(b.created_at, tz)}</p>
+          {isRop && !deleted && <TrashButton id={b.id} />}
         </div>
       </div>
     </AppShell>

@@ -88,6 +88,7 @@ export default async function StatsPage(props: PageProps<"/stats">) {
     .gte("starts_at", dayStartIso(from))
     .lt("starts_at", dayStartIso(shiftDate(to, 1)))
     .lte("starts_at", new Date().toISOString()) // только прошедшие встречи
+    .is("deleted_at", null)
     .order("starts_at")
     .limit(5000);
   if (hunter) q = q.eq("hunter_id", hunter);

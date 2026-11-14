@@ -21,7 +21,9 @@ import {
   refreshAmoAction,
   rescheduleAction,
   ropUpdateAction,
+  restoreBookingAction,
   retryAmoSyncAction,
+  trashBookingAction,
   setMeetingResultAction,
   setStatusAction,
   updateMyBookingAction,
@@ -448,6 +450,48 @@ export function CancelButton({ id }: { id: string }) {
         </Modal>
       )}
     </>
+  );
+}
+
+/* ---------- Корзина (РОП/админ) ---------- */
+
+export function TrashButton({ id }: { id: string }) {
+  const [open, setOpen] = useState(false);
+  const { pending, err, run } = useRun();
+  return (
+    <>
+      <button className="w-full text-sm text-gray-500 underline underline-offset-2 hover:text-red-700 py-1" onClick={() => setOpen(true)}>
+        Удалить в корзину
+      </button>
+      {open && (
+        <Modal title="Удалить встречу в корзину?" onClose={() => setOpen(false)}>
+          <p className="text-sm text-gray-600">
+            Встреча исчезнет из статистики и списков, слот клоузера освободится. Вернуть её можно в разделе «Все
+            встречи» → «Корзина».
+          </p>
+          {err && <p className="text-sm text-red-600">{err}</p>}
+          <button className="btn-danger w-full" disabled={pending} onClick={() => run(() => trashBookingAction(id), () => setOpen(false))}>
+            {pending ? "Удаляем…" : "Удалить в корзину"}
+          </button>
+        </Modal>
+      )}
+    </>
+  );
+}
+
+export function RestoreButton({ id, small }: { id: string; small?: boolean }) {
+  const { pending, err, run } = useRun();
+  return (
+    <span className="flex flex-col items-end gap-1">
+      <button
+        className={small ? "btn-secondary px-3 py-1 text-xs" : "btn-primary"}
+        disabled={pending}
+        onClick={() => run(() => restoreBookingAction(id))}
+      >
+        {pending ? "Восстанавливаем…" : "Восстановить"}
+      </button>
+      {err && <span className="text-xs text-red-600 max-w-56 text-right">{err}</span>}
+    </span>
   );
 }
 

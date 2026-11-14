@@ -14,6 +14,7 @@ import {
 } from "@/lib/labels";
 import { dayStartIso, isDate, shiftDate } from "@/lib/dates";
 import { StatusSelect } from "./status-select";
+import { RestoreButton } from "@/app/bookings/[id]/card-actions";
 
 type Row = {
   id: string;
@@ -36,8 +37,8 @@ const str = (v: unknown) => (typeof v === "string" ? v : "");
 export default async function MeetingsPage(props: PageProps<"/meetings">) {
   const me = await requireUser();
   const sp = await props.searchParams;
-  const tab = sp.tab === "past" ? "past" : "upcoming";
   const isRop = me.roles.includes("rop") || me.roles.includes("admin");
+  const tab = sp.tab === "past" ? "past" : sp.tab === "trash" && isRop ? "trash" : "upcoming";
 
   const f = {
     from: isDate(sp.from) ? sp.from : "",
@@ -56,7 +57,9 @@ export default async function MeetingsPage(props: PageProps<"/meetings">) {
       "id,starts_at,client_name,format,status,hunter_id,closer_id,student_grade,qual,qual_after,note_after,hunter:users!bookings_hunter_id_fkey(name),closer:users!bookings_closer_id_fkey(name)",
     )
     .limit(500);
-  q = tab === "upcoming" ? q.gt("ends_at", nowIso).order("starts_at") : q.lte("starts_at", nowIso).order("starts_at", { ascending: false });
+  if (tab === "trash") q = q.not("deleted_at", "is", null).order("starts_at", { ascending: false });
+  else if (tab === "upcoming") q = q.is("deleted_at", null).gt("ends_at", nowIso).order("starts_at");
+  else q = q.is("deleted_at", null).lte("starts_at", nowIso).order("starts_at", { ascending: false });
   if (f.from) q = q.gte("starts_at", dayStartIso(f.from));
   if (f.to) q = q.lt("starts_at", dayStartIso(shiftDate(f.to, 1)));
   if (f.hunter) q = q.eq("hunter_id", f.hunter);
@@ -113,11 +116,16 @@ export default async function MeetingsPage(props: PageProps<"/meetings">) {
           <Link href={tabHref("past")} className={`rounded-md px-3 py-1 ${tab === "past" ? "bg-white shadow-sm font-medium" : "text-gray-600"}`}>
             Прошедшие
           </Link>
+          {isRop && (
+            <Link href="/meetings?tab=trash" className={`rounded-md px-3 py-1 ${tab === "trash" ? "bg-white shadow-sm font-medium" : "text-gray-600"}`}>
+              Корзина
+            </Link>
+          )}
         </div>
       </div>
 
       <form className="card p-3 mb-4 grid grid-cols-2 md:grid-cols-6 gap-2 text-sm" method="get">
-        {tab === "past" && <input type="hidden" name="tab" value="past" />}
+        {tab !== "upcoming" && <input type="hidden" name="tab" value={tab} />}
         <label className="block">
           <span className="text-xs text-gray-500">С</span>
           <input type="date" name="from" defaultValue={f.from} className="input mt-0.5" />
@@ -174,7 +182,7 @@ export default async function MeetingsPage(props: PageProps<"/meetings">) {
         </label>
         <div className="col-span-2 md:col-span-6 flex gap-2">
           <button className="btn-primary px-4 py-1.5">Применить</button>
-          <Link href={tab === "past" ? "/meetings?tab=past" : "/meetings"} className="btn-secondary px-4 py-1.5">
+          <Link href={tab === "upcoming" ? "/meetings" : `/meetings?tab=${tab}`} className="btn-secondary px-4 py-1.5">
             Сбросить
           </Link>
           <span className="ml-auto self-center text-xs text-gray-500">Найдено: {rows.length}</span>
@@ -191,7 +199,7 @@ export default async function MeetingsPage(props: PageProps<"/meetings">) {
       )}
 
       {groups.length === 0 ? (
-        <div className="card text-sm text-gray-500">Встреч не найдено.</div>
+        <div className="card text-sm text-gray-500">{tab === "trash" ? "Корзина пуста." : "Встреч не найдено."}</div>
       ) : (
         <div className="space-y-4">
           {groups.map((g) => (
@@ -226,7 +234,11 @@ export default async function MeetingsPage(props: PageProps<"/meetings">) {
                           </div>
                         </div>
                       </Link>
-                      <StatusSelect id={r.id} status={r.status} options={optionsFor(r)} qualAfter={r.qual_after} noteAfter={r.note_after} />
+                      {tab === "trash" ? (
+                        <RestoreButton id={r.id} small />
+                      ) : (
+                        <StatusSelect id={r.id} status={r.status} options={optionsFor(r)} qualAfter={r.qual_after} noteAfter={r.note_after} />
+                      )}
                     </div>
                   );
                 })}
