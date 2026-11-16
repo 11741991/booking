@@ -73,8 +73,6 @@ export async function createBookingAction(input: {
   if (input.format !== "online" && input.format !== "offline") return { ok: false, error: "Выберите формат" };
   if (!GRADES.includes(input.grade)) return { ok: false, error: "Укажите класс обучения" };
   if (!(QUALS as readonly string[]).includes(input.qual)) return { ok: false, error: "Укажите степень квала" };
-  if (input.format === "online" && !/^https?:\/\/\S+$/i.test(input.meetingUrl.trim()))
-    return { ok: false, error: "Вставьте ссылку на онлайн-встречу (https://…)" };
 
   // amoCRM: снимок сделки (если интеграция подключена)
   const amo = await fetchAmoLead(crmUrl);

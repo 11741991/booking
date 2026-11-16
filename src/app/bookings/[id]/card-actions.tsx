@@ -507,7 +507,7 @@ export function EditBooking(p: {
   qual: string;
 }) {
   const [open, setOpen] = useState(false);
-  const [meetingUrl, setMeetingUrl] = useState(p.meetingUrl);
+  const meetingUrl = p.meetingUrl;
   const [crmUrl, setCrmUrl] = useState(p.crmUrl);
   const [comment, setComment] = useState(p.comment);
   const [grade, setGrade] = useState(p.grade);
@@ -531,12 +531,6 @@ export function EditBooking(p: {
       }}
     >
       <h2 className="font-medium">Изменить встречу</h2>
-      {p.format === "online" && (
-        <label className="block text-sm">
-          Ссылка на встречу
-          <input className="input mt-1" value={meetingUrl} onChange={(e) => setMeetingUrl(e.target.value)} required />
-        </label>
-      )}
       <label className="block text-sm">
         Ссылка на сделку в CRM
         <input className="input mt-1" value={crmUrl} onChange={(e) => setCrmUrl(e.target.value)} required />
@@ -682,12 +676,6 @@ export function RopEdit(p: {
                 </button>
               ))}
             </div>
-            {f.format === "online" && (
-              <label className="block text-sm">
-                Ссылка на встречу
-                <input className="input mt-1" value={f.meetingUrl} onChange={(e) => set("meetingUrl", e.target.value)} />
-              </label>
-            )}
             <GradeQual grade={f.grade} setGrade={(v) => set("grade", v)} qual={f.qual} setQual={(v) => set("qual", v)} />
             <label className="block text-sm">
               Комментарий

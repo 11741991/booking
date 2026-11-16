@@ -167,19 +167,20 @@ export default async function BookingPage(props: PageProps<"/bookings/[id]">) {
               </dd>
               <dt className="text-gray-500">Формат</dt>
               <dd>{FORMAT_LABELS[b.format]}</dd>
-              {b.format === "online" ? (
-                <>
-                  <dt className="text-gray-500">Ссылка</dt>
-                  <dd className="break-all">
-                    <a className="underline underline-offset-2 text-sky-700" href={b.meeting_url ?? "#"} target="_blank" rel="noreferrer">
-                      {b.meeting_url}
-                    </a>
-                  </dd>
-                </>
-              ) : (
+              {b.format === "offline" && (
                 <>
                   <dt className="text-gray-500">Адрес</dt>
                   <dd>{b.address}</dd>
+                </>
+              )}
+              {b.meeting_url && (
+                <>
+                  <dt className="text-gray-500">Ссылка</dt>
+                  <dd className="break-all">
+                    <a className="underline underline-offset-2 text-sky-700" href={b.meeting_url} target="_blank" rel="noreferrer">
+                      {b.meeting_url}
+                    </a>
+                  </dd>
                 </>
               )}
               <dt className="text-gray-500">Сделка в CRM</dt>

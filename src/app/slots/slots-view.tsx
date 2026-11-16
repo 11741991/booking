@@ -164,7 +164,6 @@ function BookingForm(p: Props & { slot: GridSlot; free: number; onDone: (r: Extr
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [format, setFormat] = useState<"online" | "offline" | "">("");
-  const [meetingUrl, setMeetingUrl] = useState("");
   const [comment, setComment] = useState("");
   const [grade, setGrade] = useState("");
   const [qual, setQual] = useState("");
@@ -200,7 +199,7 @@ function BookingForm(p: Props & { slot: GridSlot; free: number; onDone: (r: Extr
       const r = await createBookingAction({
         start: p.slot.start,
         format,
-        meetingUrl,
+        meetingUrl: "",
         clientName: name,
         clientPhone: phone,
         crmUrl,
@@ -306,19 +305,6 @@ function BookingForm(p: Props & { slot: GridSlot; free: number; onDone: (r: Extr
         </div>
       </div>
 
-      {format === "online" && (
-        <label className="block text-sm">
-          Ссылка на встречу *
-          <input
-            className="input mt-1"
-            inputMode="url"
-            placeholder="https://zoom.us/… или meet.google.com/…"
-            value={meetingUrl}
-            onChange={(e) => setMeetingUrl(e.target.value)}
-            required
-          />
-        </label>
-      )}
       {format === "offline" && (
         <div className="text-sm rounded-lg bg-gray-50 border border-gray-200 px-3 py-2">
           Адрес: <b>{p.officeAddress}</b>
